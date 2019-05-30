@@ -59,4 +59,9 @@ setup(
         "Topic :: Internet :: WWW/HTTP",
         "Topic :: System :: Monitoring",
     ],
+    entry_points={
+        "console_scripts": [
+            "spidermon = spidermon.commands.spidermon",
+        ],
+    },
 )
