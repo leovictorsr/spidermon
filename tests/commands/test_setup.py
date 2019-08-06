@@ -34,11 +34,12 @@ MODULE_MONITOR_LIST = [
         },
     }
 ]
-PROJECT_SETTINGS = Settings()
-PROJECT_SETTINGS.setdict({"BOT_NAME": "test_bot"})
-PROJECT_SETTINGS_WITH_SPIDERMON = Settings()
-PROJECT_SETTINGS_WITH_SPIDERMON.setdict(
-    {"BOT_NAME": "test_bot", "SPIDERMON_ENABLED": True}
+PROJECT_SETTINGS = Settings(values={"BOT_NAME": "test_bot"})
+PROJECT_SETTINGS_WITH_SPIDERMON = Settings(
+    values={"BOT_NAME": "test_bot", "SPIDERMON_ENABLED": True}
+)
+PROJECT_SETTINGS_WITH_SETTING = Settings(
+    values={"BOT_NAME": "test_bot", "TEST_SETTING": 1}
 )
 
 
@@ -66,6 +67,10 @@ def mocker_commands(mocker):
 @pytest.fixture
 def mocker_click(mocker):
     mocker.patch.object(click, "prompt")
+    mocker.patch.object(click, "echo")
+    mocker.patch.object(commands, "is_setting_setup")
+
+    commands.is_setting_setup.return_value = True
 
     return mocker
 
@@ -160,3 +165,20 @@ def test_should_ask_setting_from_monitors_to_enable_when_dict(mocker_click, runn
     click.prompt.assert_any_call(expected_output_dict)
     click.prompt.assert_any_call(expected_output_list)
     assert click.prompt.call_count == 2
+
+
+def test_should_notify_when_setting_already_setup(
+    mocker_click, mocker_commands, runner
+):
+    commands.get_project_settings.return_value = PROJECT_SETTINGS_WITH_SETTING
+
+    expected_output = monitor_prompts["setting_already_setup"].format(
+        MODULE_MONITOR_LIST[0]["monitors"]["TestMonitor"]["name"]
+    )
+
+    result = get_settings(
+        MODULE_MONITOR_LIST[0], MODULE_MONITOR_LIST[0]["monitors"]["TestMonitor"]
+    )
+
+    assert result == []
+    click.echo.assert_called_with(expected_output)
