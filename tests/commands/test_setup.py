@@ -2,8 +2,15 @@ from click.testing import CliRunner
 from pytest_mock import mocker
 from scrapy.settings import Settings
 from spidermon.commands import cli
-from spidermon.commands.prompts import monitor_prompts
-from spidermon.commands.setup import get_settings, get_user_input
+from spidermon.commands.prompts import monitor_prompts, validation_prompts
+from spidermon.commands.setup import (
+    enable_validation,
+    is_setting_setup,
+    get_schemas_to_enable,
+    get_settings,
+    get_user_input,
+    VALIDATION_OPTIONS,
+)
 from spidermon.decorators import commands as decorator_commands
 from spidermon.utils import commands, file_utils, monitors
 
@@ -48,6 +55,15 @@ PROJECT_SETTINGS_WITH_SPIDERMON = Settings(
 PROJECT_SETTINGS_WITH_SETTING = Settings(
     values={"BOT_NAME": "test_bot", "TEST_SETTING": 1}
 )
+PROJECT_SETTINGS_WITH_ITEM_PIPELINES = Settings(
+    values={
+        "BOT_NAME": "test_bot",
+        "TEST_SETTING": 1,
+        "ITEM_PIPELINES": {
+            "spidermon.contrib.scrapy.pipelines.ItemValidationPipeline": 800
+        },
+    }
+)
 
 
 @pytest.fixture
@@ -56,6 +72,7 @@ def mocker_commands(mocker):
     mocker.patch.object(commands, "enable_spidermon")
     mocker.patch.object(commands, "get_project_settings")
     mocker.patch.object(commands, "get_settings_path")
+    mocker.patch.object(commands, "is_predefined_setting_setup")
     mocker.patch.object(commands, "is_setting_setup")
     mocker.patch.object(commands, "update_settings")
     mocker.patch.object(decorator_commands, "inside_project")
@@ -63,8 +80,10 @@ def mocker_commands(mocker):
     mocker.patch.object(file_utils, "render_file")
     mocker.patch.object(monitors, "find_monitor_modules")
 
-    commands.get_project_settings.return_value = PROJECT_SETTINGS
+    commands.update_settings.return_value = True
+    commands.is_predefined_setting_setup.return_value = False
     commands.is_setting_setup.return_value = False
+    commands.get_project_settings.return_value = PROJECT_SETTINGS
     decorator_commands.inside_project.return_value = True
     monitors.find_monitor_modules.return_value = MODULE_MONITOR_LIST
 
@@ -258,3 +277,151 @@ def test_should_validate_all_dict_inputs(
     result = get_user_input(setting_type, description)
     click.confirm.assert_called_once()
     assert not result
+
+
+def test_should_ask_to_enable_validation(mocker_commands, runner):
+    result = runner.invoke(cli, ["setup"])
+    expected_output = validation_prompts["enable"]
+    assert result.exit_code == 0
+    assert expected_output in result.output
+
+
+def test_should_ask_which_validation_framework(mocker_commands, mocker_click):
+    options = {i + 1: name for (i, name) in enumerate(VALIDATION_OPTIONS)}
+    schemas_list = [
+        "[{}] {}".format(i + 1, option) for i, option in enumerate(VALIDATION_OPTIONS)
+    ]
+
+    msg = "\n".join(schemas_list)
+    expected_output = validation_prompts["validation_schema"].format(msg)
+    enable_validation()
+    click.prompt.assert_called_with(expected_output)
+
+
+@pytest.mark.parametrize("selected_type", [("-10"), (str(len(VALIDATION_OPTIONS) + 1))])
+def test_should_notify_when_invalid_validation_type(
+    mocker_commands, mocker_click, selected_type
+):
+    click.confirm.side_effect = [True, False]
+    click.prompt.return_value = selected_type
+    calls = [mocker_click.call(validation_prompts["invalid_validation_schema"])]
+    assert not enable_validation()
+    click.confirm.assert_has_calls(calls)
+
+
+def test_should_ask_which_schema_to_enable(mocker_click):
+    schemas = [
+        ("TestItem", "path.to.TestItem"),
+        ("AnotherTestItem", "path.to.AnotherTestItem"),
+    ]
+
+    item_list = ["[{}] {}".format(*i) for i in schemas]
+    msg = "\n".join(item_list)
+    calls = [mocker_click.call(validation_prompts["validation_list"].format(msg))]
+
+    get_schemas_to_enable(schemas)
+    click.prompt.has_calls(calls)
+
+
+def test_should_not_ask_already_enabled_schemas(mocker_click):
+    schemas = [
+        ("TestItem", "path.to.TestItem"),
+        ("AnotherTestItem", "path.to.AnotherTestItem"),
+    ]
+    click.prompt.side_effect = [2, 1]
+
+    calls = []
+    for i in range(len(schemas) - 1):
+        item_list = ["[{}] {}".format(*j) for j in schemas]
+        msg = "\n".join(item_list)
+        calls += [mocker_click.call(validation_prompts["validation_list"].format(msg))]
+        schemas.pop(i)
+
+    get_schemas_to_enable(schemas)
+    click.prompt.has_calls(calls)
+
+
+@pytest.mark.parametrize("selected_schema", [("-10", "1"), ("2", "1")])
+def test_should_notify_and_retry_when_invalid_schema_selected(
+    mocker_click, selected_schema
+):
+    schemas = [("TestItem", "path.to.TestItem")]
+    click.prompt.side_effect = selected_schema
+
+    calls = [mocker_click.call(validation_prompts["validation_list_error"])]
+    get_schemas_to_enable(schemas)
+    click.confirm.assert_has_calls(calls)
+    assert click.prompt.call_count == 2
+
+
+def test_should_continue_when_available_schemas_and_user_allows(mocker_click):
+    schemas = [
+        ("TestItem", "path.to.TestItem"),
+        ("AnotherTestItem", "path.to.AnotherTestItem"),
+    ]
+    click.prompt.return_value = "1"
+    click.confirm.return_value = True
+
+    calls = []
+    while schemas:
+        item_list = [
+            "[{}] {}".format(j + 1, schemas[j][0]) for j in range(len(schemas))
+        ]
+        msg = "\n".join(item_list)
+        calls += [mocker_click.call(validation_prompts["validation_list"].format(msg))]
+        schemas.pop(0)
+
+    schemas = [
+        ("TestItem", "path.to.TestItem"),
+        ("AnotherTestItem", "path.to.AnotherTestItem"),
+    ]
+    get_schemas_to_enable(schemas)
+    click.prompt.has_calls(calls)
+    assert click.prompt.call_count == 2
+
+
+def test_should_not_continue_when_available_schemas_but_user_denies(mocker_click):
+    schemas = [
+        ("TestItem", "path.to.TestItem"),
+        ("AnotherTestItem", "path.to.AnotherTestItem"),
+    ]
+    click.prompt.return_value = "1"
+    click.confirm.return_value = False
+
+    calls = []
+    item_list = ["[{}] {}".format(j + 1, schemas[j][0]) for j in range(len(schemas))]
+    msg = "\n".join(item_list)
+    calls += [mocker_click.call(validation_prompts["validation_list"].format(msg))]
+
+    get_schemas_to_enable(schemas)
+    click.prompt.has_calls(calls)
+    assert click.prompt.call_count == 1
+
+
+def test_should_not_continue_when_not_available_schemas(mocker_click):
+    schemas = [
+        ("TestItem", "path.to.TestItem"),
+        ("AnotherTestItem", "path.to.AnotherTestItem"),
+    ]
+    click.prompt.return_value = "1"
+    click.confirm.return_value = True
+
+    calls = []
+    while schemas:
+        item_list = [
+            "[{}] {}".format(j + 1, schemas[j][0]) for j in range(len(schemas))
+        ]
+        msg = "\n".join(item_list)
+        calls += [mocker_click.call(validation_prompts["validation_list"].format(msg))]
+        schemas.pop(0)
+
+    schemas = [
+        ("TestItem", "path.to.TestItem"),
+        ("AnotherTestItem", "path.to.AnotherTestItem"),
+    ]
+    assert get_schemas_to_enable(schemas) == [
+        ("TestItem", "path.to.TestItem"),
+        ("AnotherTestItem", "path.to.AnotherTestItem"),
+    ]
+    click.prompt.has_calls(calls)
+    assert click.prompt.call_count == 2

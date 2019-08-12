@@ -1,7 +1,6 @@
-from spidermon.commands.prompts import monitor_prompts
+from spidermon.commands.prompts import monitor_prompts, validation_prompts
 from spidermon.decorators import commands
 
-from io import StringIO
 from pytest_mock import mocker
 
 import click
@@ -55,3 +54,25 @@ def test_should_notify_when_not_inside_scrapy_project(mocker):
 
     click.echo.assert_called_with(monitor_prompts["project_error"])
     mock.assert_not_called()
+
+
+def test_should_call_decorated_function_when_module_found(mocker):
+    mock = mocker.Mock()
+    decorated = commands.is_packaged_installed(module="spidermon")(mock)
+    decorated()
+
+    mock.assert_called()
+
+
+def test_should_notify_when_module_not_installed(mocker):
+    with pytest.raises(ImportError):
+        mock = mocker.Mock()
+        decorated = commands.is_packaged_installed(module="module_not_installed")(mock)
+        decorated()
+
+        expected_output = validation_prompts["module_error"].format(
+            "module_not_installed"
+        )
+        expected_output = click.style(expected_output, fg="red", bg="white")
+        click.echo.assert_called_with(expected_output)
+        mock.assert_not_called()

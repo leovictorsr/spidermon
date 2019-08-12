@@ -85,6 +85,9 @@ Spidermon built-in monitors:
   - Finish Reasons
   - Unwanted HTTP Codes
 
+After that, it will ask and allow you to configure your existent models and
+schemas for the spider generated `items validation`_.
+
 The command will update your settings.py according to the given configurations.
 
 .. note::
@@ -172,8 +175,125 @@ the example below:
 
     Thanks for enabling the Scrapy Monitor Suite!
 
-When setup finishes, it writes the configurations to settings.py
+When the setup for monitors finished, it writes the relevant configurations to
+settings.py
+
+After setting up monitors, it will ask if you want to enable Item Validation.
+
+.. code-block:: console
+
+    $ spidermon setup
+    Spidermon was enabled succesfully!
+
+    Enable the Item Count monitor? [y/N]: n
+
+    Enable the Error Count monitor? [y/N]: n
+
+    Enable the Finish Reason monitor? [y/N]: n
+
+    Enable the Unwanted HTTP Codes monitor? [y/N]: n
+    Thanks for enabling the Scrapy Monitor Suite!
+
+    Do you want to enable Item Validation? [y/N]: y
+
+If you choose to proceed with Item Validation, it will ask which type of validation
+framework you want to use. You can read more about the types of item validation schema at
+the `Spidermon docs`_
+
+.. code-block:: console
+    Select a validation framework to use from the list below (use the number related):
+    [1] schematics
+    [2] jsonschema
+    Which validation framework do you want to use?: 1
+
+
+.. note::
+    Note that in order to use item validation with schematics you must have the
+    correspondent module installed. Trying to enable item validation without them
+    module will be notified and the item validation enabling process will be
+    aborted.
+
+    You can check a good way to install Spidermon with jsonschema at the
+    `installation page`_
+
+    .. code-block:: console
+        Select a validation framework to use from the list below (use the number related):
+        [1] schematics
+        [2] jsonschema
+        Which validation framework do you want to use?: 1
+
+        You need to install schematics to use this feature.
+        
+        No items added for validation.
+
+
+
+After selecting which type of schema you want to use, it will be searched for any
+available models or files for the selected type. You must have those models and/or
+files already on your project in order to enable them, otherwise it will just
+enable the Item Validation Pipeline.
+
+For schematics:
+
+.. code-block::  console
+
+    Select a validation framework to use from the list below (use the number related):
+    [1] schematics
+    [2] jsonschema
+    Which validation framework do you want to use?: 1
+
+    These are the available item schemas in your project:
+    [1] QuoteItem
+    Which item do you want to enable validation?: 1
+    Item Validation enabled succesfully!
+
+For jsonschema:
+
+.. code-block::  console
+
+    Select a validation framework to use from the list below (use the number related):
+    [1] schematics
+    [2] jsonschema
+    Which validation framework do you want to use?: 2
+
+
+    These are the available item schemas in your project:
+    [1] schema01
+    Which item do you want to enable validation?: 1
+    Item Validation enabled succesfully!
+
+
+It will only be available to enable item models and schemas that weren't
+previously enabled.
+
+.. code-block:: console
+
+    $ spidermon setup
+    [...]
+    Select a validation framework to use from the list below (use the number related):
+    [1] schematics
+    [2] jsonschema
+    Which validation framework do you want to use?: 2
+
+    These are the available item schemas in your project:
+    [1] schema01
+    Which item do you want to enable validation?: 1
+    Item Validation enabled succesfully!
+
+    $ spidermon setup
+    [...]
+    Enable validation for your collected items? [y/N]: y
+
+    Select a validation framework to use from the list below (use the number related):
+    [1] schematics
+    [2] jsonschema
+    Which validation framework do you want to use?: 2
+    There are no available item validation schemas!
+    No items added for validation.
 
 
 .. _enables spidermon: https://spidermon.readthedocs.io/en/latest/getting-started.html#enabling-spidermon
 .. _built-in monitors: https://spidermon.readthedocs.io/en/latest/monitors.html#is-there-a-basic-scrapy-suite-ready-to-use
+.. _items validation: https://spidermon.readthedocs.io/en/latest/en/latest/item-validation.html
+.. _Spidermon docs: https://spidermon.readthedocs.io/en/latest/en/latest/item-validation.html
+.. _installation page: https://spidermon.readthedocs.io/en/latest/installation.html
