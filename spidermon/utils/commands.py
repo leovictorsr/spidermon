@@ -58,12 +58,15 @@ def parse_list(entry):
 
 
 def is_setting_setup(setting):
-    return setting in get_project_settings().attributes
+    return (
+        setting in get_project_settings().attributes
+        and get_project_settings().get(setting) is not None
+    )
 
 
 def is_spidermon_enabled():
     if is_setting_setup("SPIDERMON_ENABLED"):
-        return get_project_settings()["SPIDERMON_ENABLED"]
+        return get_project_settings().get("SPIDERMON_ENABLED")
     return False
 
 

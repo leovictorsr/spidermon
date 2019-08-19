@@ -72,10 +72,10 @@ def test_should_return_correct_spidermon_status(mocker_commands):
 
     assert commands.is_spidermon_enabled() == False
 
-    PROJECT_SETTINGS["SPIDERMON_ENABLED"] = False
+    PROJECT_SETTINGS.set("SPIDERMON_ENABLED", False)
     assert commands.is_spidermon_enabled() == False
 
-    PROJECT_SETTINGS["SPIDERMON_ENABLED"] = True
+    PROJECT_SETTINGS.set("SPIDERMON_ENABLED", True)
     assert commands.is_spidermon_enabled() == True
 
 
